@@ -98,9 +98,6 @@ def main():
 
     p.recvuntil("\n")
     p.sendline(payload)
-    # recieved = p.recvline().rstrip()
-    # leaked = u64(recieved.ljust(8, b"\x00"))
-    # print("leaked: " + hex(leaked))
     p.interactive()
 
 if __name__ == "__main__":
